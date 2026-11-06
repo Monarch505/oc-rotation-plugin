@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OC Rotation</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #0b0f14; color: #e5e7eb; font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin: 24px 0 8px; }
+  .sub { color: #94a3b8; font-size: 12px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  .card { border: 1px solid #1f2937; border-radius: 10px; padding: 16px; background: #0f1520; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .grid { display: grid; gap: 8px 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .kv { font-size: 12px; color: #94a3b8; }
+  .kv b { display: block; color: #e5e7eb; font-size: 14px; font-weight: 600; }
+  .banner { background: #3b0d0d; border-color: #7f1d1d; color: #fecaca; }
+  .banner.warn { background: #3b2a0d; border-color: #78350f; color: #fde68a; }
+  button, select, input { font: inherit; color: #e5e7eb; background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: #334155; }
+  button.primary { background: #1d4ed8; border-color: #1d4ed8; }
+  button.danger { background: #7f1d1d; border-color: #7f1d1d; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #16202c; white-space: nowrap; }
+  th { color: #94a3b8; font-weight: 500; }
+  tr.current td { background: #0c1a2b; }
+  .tag { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 11px; border: 1px solid #1f2937; }
+  .tag.active { border-color: #166534; color: #86efac; }
+  .tag.limited { border-color: #78350f; color: #fcd34d; }
+  .tag.error, .tag.eliminated { border-color: #7f1d1d; color: #fca5a5; }
+  .tag.current { border-color: #1d4ed8; color: #93c5fd; }
+  .tag.muted { color: #64748b; }
+  .events { max-height: 220px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #94a3b8; }
+  .events div { padding: 1px 0; }
+  .err { color: #fca5a5; }
+  .ok { color: #86efac; }
+  .warn { color: #fcd34d; }
+  .muted { color: #64748b; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OC Rotation</h1>
+  <div class="sub" id="sub">loading…</div>
+
+  <div id="banner" class="card banner" style="display:none;margin-top:16px"></div>
+
+  <h2>Rotation</h2>
+  <div class="card">
+    <div class="grid" id="rot"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="rotate">Rotate now</button>
+      <button id="clear-cd">Clear cooldowns</button>
+      <button id="check">Check all pools</button>
+      <label class="kv row" style="gap:6px"><input type="checkbox" id="elim" /> Elimination (route opencode through the mux)</label>
+    </div>
+  </div>
+
+  <h2>Settings</h2>
+  <div class="card">
+    <div class="grid">
+      <label class="kv">Cooldown (min)<input id="cooldownMin" type="number" min="1" max="120" /></label>
+      <label class="kv">Cascade max eliminations<input id="maxElim" type="number" min="1" max="20" /></label>
+      <label class="kv">Cascade window (min)<input id="windowMin" type="number" min="1" max="1440" /></label>
+      <label class="kv">Cascade pause (min)<input id="pauseMin" type="number" min="1" max="1440" /></label>
+      <label class="kv">Probe mode
+        <select id="probeMode"><option value="endpoint">endpoint (cheap)</option><option value="chat">chat (burns quota)</option></select>
+      </label>
+      <label class="kv">Probe model<input id="probeModel" type="text" /></label>
+      <label class="kv">Probe timeout (ms)<input id="probeTimeoutMs" type="number" min="1000" max="120000" /></label>
+      <label class="kv">Sweep concurrency<input id="sweepConcurrency" type="number" min="1" max="32" /></label>
+      <label class="kv">Tunnel timeout (ms)<input id="tunnelTimeoutMs" type="number" min="1000" max="120000" /></label>
+      <label class="kv">Auto sweep (min, 0 = off)<input id="autoInterval" type="number" min="0" max="1440" /></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="save">Save settings</button>
+      <span class="muted" id="dirty"></span>
+    </div>
+  </div>
+
+  <h2>Pools</h2>
+  <div class="card" style="padding:8px 16px">
+    <table>
+      <thead><tr><th>Pool</th><th>Status</th><th>Fails</th><th>Last check</th><th>Cooldown</th><th>Exclude</th><th></th></tr></thead>
+      <tbody id="pools"></tbody>
+    </table>
+  </div>
+
+  <h2>Events</h2>
+  <div class="card events" id="events"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+let dirty = false;
+
+async function api(method, body) {
+  const res = await fetch("/api/op-rotation", {
+    method,
+    headers: body ? { "content-type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const text = await res.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch {}
+  if (!res.ok) throw new Error((json && json.error) || text || ("HTTP " + res.status));
+  return json;
+}
+
+const action = (name, extra) => api("POST", { action: name, ...(extra || {}) });
+
+function fmt(ms) {
+  if (!ms) return "never";
+  const d = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (d < 60) return d + "s ago";
+  if (d < 3600) return Math.round(d / 60) + "m ago";
+  if (d < 86400) return Math.round(d / 3600) + "h ago";
+  return Math.round(d / 86400) + "d ago";
+}
+
+function countdown(until, now) {
+  if (!until || !now) return "";
+  const left = Math.max(0, until - now);
+  if (!left) return "";
+  const m = Math.floor(left / 60000);
+  const s = Math.floor((left % 60000) / 1000);
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+function tag(status) {
+  const cls = status === "oc-active" ? "active"
+    : status === "oc-limited" ? "limited"
+    : status === "oc-eliminated" ? "eliminated"
+    : status === "oc-error" ? "error" : "muted";
+  return '<span class="tag ' + cls + '">' + (status || "untested") + "</span>";
+}
+
+function render() {
+  if (!state) return;
+  const now = state.now || 0;
+  const cands = (state.candidates || []).length;
+  $("sub").textContent = "mux 127.0.0.1:" + state.effective.muxPort + " · api 127.0.0.1:" + state.effective.apiPort
+    + " · candidates " + cands + " · last sweep " + (state.lastSweepAt ? new Date(state.lastSweepAt).toLocaleString() : "never");
+
+  const banner = $("banner");
+  if (cands === 0 && state.elim.enabled) {
+    banner.style.display = "block";
+    banner.className = "card banner";
+    banner.textContent = "Fail-closed: no oc-active pool. Opencode /v1 requests get 502 instead of leaking the local IP. Run Check all.";
+  } else if (!state.elim.enabled) {
+    banner.style.display = "block";
+    banner.className = "card banner warn";
+    banner.textContent = "Elimination is off: opencode traffic does not use the mux, so rotation and 429 handling are inactive.";
+  } else {
+    banner.style.display = "none";
+  }
+
+  $("rot").innerHTML = [
+    ["Current pool", state.current ? '<span class="tag current">' + state.current + "</span>" : '<span class="muted">none (fail-closed)</span>'],
+    ["Since", state.currentSince ? fmt(state.currentSince) : "—"],
+    ["Eliminated (recent)", (state.eliminations || []).length],
+    ["Open tunnels", state.effective.tunnelsOpen],
+    ["Paused until", state.elimPausedUntil ? new Date(state.elimPausedUntil).toLocaleString() : "no"],
+    ["Last sweep", state.lastSweepSummary ? (state.lastSweepSummary.ok + " ok / " + state.lastSweepSummary.limited + " limited / " + state.lastSweepSummary.failed + " failed") : "never"],
+  ].map(([k, v]) => '<div class="kv">' + k + "<b>" + v + "</b></div>").join("");
+
+  $("elim").checked = !!state.elim.enabled;
+  $("autoInterval").value = state.auto.enabled ? state.auto.intervalMin : 0;
+
+  if (!dirty) {
+    const s = state.settings;
+    $("cooldownMin").value = s.cooldownMin;
+    $("maxElim").value = s.cascade.maxElim;
+    $("windowMin").value = s.cascade.windowMin;
+    $("pauseMin").value = s.cascade.pauseMin;
+    $("probeMode").value = s.probeMode || "endpoint";
+    $("probeModel").value = s.probeModel || "";
+    $("probeTimeoutMs").value = s.probeTimeoutMs;
+    $("sweepConcurrency").value = s.sweepConcurrency;
+    $("tunnelTimeoutMs").value = s.tunnelTimeoutMs;
+  }
+
+  const pools = (state.pools || []).filter((p) => !p.ocManaged);
+  $("pools").innerHTML = pools.map((p) => {
+    const isCurrent = state.current === p.id;
+    const cd = countdown(p.cooldownUntil, now);
+    return '<tr class="' + (isCurrent ? "current" : "") + '">'
+      + "<td>" + p.name + '<div class="muted" style="font-size:11px">' + p.proxyUrl + "</div></td>"
+      + "<td>" + tag(p.testStatus) + "</td>"
+      + "<td>" + p.ocFailStreak + "</td>"
+      + "<td>" + (p.ocLastCheckAt ? fmt(new Date(p.ocLastCheckAt).getTime()) : "never") + "</td>"
+      + '<td class="muted">' + (cd ? "cooldown " + cd : "") + "</td>"
+      + '<td><input type="checkbox" data-exclude="' + p.id + '"' + (p.ocExclude ? " checked" : "") + " /></td>"
+      + '<td><button data-test="' + p.id + '">Test</button></td>'
+      + "</tr>";
+  }).join("") || '<tr><td colspan="7" class="muted">No proxy pools yet.</td></tr>';
+
+  $("events").innerHTML = (state.events || []).slice().reverse().map((e) => {
+    const cls = e.level === "err" ? "err" : e.level === "warn" ? "warn" : e.level === "ok" ? "ok" : "";
+    return '<div class="' + cls + '">' + new Date(e.t).toLocaleTimeString() + "  " + e.msg + "</div>";
+  }).join("");
+}
+
+async function refresh() {
+  try {
+    state = await api("GET");
+    render();
+  } catch (e) {
+    $("sub").textContent = "engine unreachable: " + e.message;
+  }
+}
+
+async function run(fn, label) {
+  try {
+    await fn();
+  } catch (e) {
+    alert(label + ": " + e.message);
+  }
+  await refresh();
+}
+
+$("rotate").onclick = () => run(() => action("rotate"), "Rotate");
+$("clear-cd").onclick = () => run(() => action("cooldown-clear"), "Clear cooldowns");
+$("check").onclick = () => run(() => action("check"), "Check");
+$("elim").onchange = (e) => run(() => action("elim", { enabled: e.target.checked }), "Elimination");
+
+$("pools").onclick = (e) => {
+  const id = e.target.getAttribute("data-test");
+  if (id) run(() => action("test-one", { id }), "Test " + id);
+};
+$("pools").onchange = (e) => {
+  const id = e.target.getAttribute("data-exclude");
+  if (id) run(() => action("candidate", { id, ocExclude: e.target.checked }), "Exclude " + id);
+};
+
+document.querySelectorAll("#cooldownMin,#maxElim,#windowMin,#pauseMin,#probeMode,#probeModel,#probeTimeoutMs,#sweepConcurrency,#tunnelTimeoutMs,#autoInterval")
+  .forEach((el) => el.addEventListener("input", () => {
+    dirty = true;
+    $("dirty").textContent = "unsaved changes";
+  }));
+
+$("save").onclick = () => run(async () => {
+  const auto = Number($("autoInterval").value) || 0;
+  await action("settings", {
+    settings: {
+      cooldownMin: Number($("cooldownMin").value),
+      cascade: {
+        maxElim: Number($("maxElim").value),
+        windowMin: Number($("windowMin").value),
+        pauseMin: Number($("pauseMin").value),
+      },
+      probeMode: $("probeMode").value,
+      probeModel: $("probeModel").value,
+      probeTimeoutMs: Number($("probeTimeoutMs").value),
+      sweepConcurrency: Number($("sweepConcurrency").value),
+      tunnelTimeoutMs: Number($("tunnelTimeoutMs").value),
+    },
+  });
+  if (auto > 0) await action("auto", { enabled: true, intervalMin: auto });
+  else await action("auto", { enabled: false });
+  dirty = false;
+  $("dirty").textContent = "";
+}, "Save settings");
+
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 5000);
+</script>
+</body>
+</html>
