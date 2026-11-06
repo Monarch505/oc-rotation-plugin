@@ -3,7 +3,7 @@ name: oc-rotation
 description: Install, verify, and remove the OC Rotation plugin on a 9router install (opencode free-tier pool rotation with 429 elimination). Use when the user asks to install OC Rotation, rotate opencode free pools, or diagnose the rotation engine.
 ---
 
-# OC Rotation plugin — agent runbook
+# OC Rotation plugin — manual
 
 Single-active proxy-pool rotation for 9router's opencode free lane: one pool at a
 time behind a local CONNECT mux, 429 elimination with a cascade guard, fail-closed
