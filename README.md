@@ -7,7 +7,7 @@ free lane eliminates that pool and rotates to the next one, with a cascade guard
 that pauses elimination when too many pools die at once. When no pool is healthy
 the mux refuses the connection (`502`) instead of falling back to the local IP.
 
-Designed to be installed by an agent: [`manual.md`](manual.md) is the manual,
+Designed to be installed by an agent: [`MANUAL.md`](MANUAL.md) is the manual,
 and every step reports what it found before it changes anything.
 
 ## Requirements
@@ -101,7 +101,7 @@ scripts/apply.cjs     install (backup, copy, patch, restart)
 scripts/verify.cjs    post-install checks
 scripts/uninstall.cjs rollback
 scripts/lib.cjs       shared install logic
-manual.md             installation manual / agent runbook
+MANUAL.md             installation manual / agent runbook
 ```
 
 MIT licensed.
