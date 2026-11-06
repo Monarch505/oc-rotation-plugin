@@ -77,6 +77,8 @@ already-eliminated pool and no-op, so a single 429 cannot eliminate two pools.
   API. Probe mode `chat` runs one tiny completion and does consume quota.
 - Version-pinned: `0.5.109-pro.15`. The sidebar anchor is a literal in the compiled
   chunk; other versions are refused unless `--force`.
+- Do not stack it on a build that already ships OC Rotation (mux 20129 and API
+  20130 would collide). Uninstall the built-in copy first.
 
 ## Uninstall
 
